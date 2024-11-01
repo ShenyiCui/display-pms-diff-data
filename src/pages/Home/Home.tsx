@@ -3,7 +3,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import { JsonView, defaultStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
-import ReactJsonViewCompare from 'react-json-view-compare';
+import ReactDiffViewer from 'react-diff-viewer-continued';
 
 interface BaseInfo {
   LogID?: string;
@@ -315,7 +315,7 @@ const Home: React.FC = () => {
                 Close
               </button>
             </div>
-            <ReactJsonViewCompare oldData={modalData.v1} newData={modalData.v2} />
+            <ReactDiffViewer oldValue={JSON.stringify(modalData.v1, null, 4)} newValue={JSON.stringify(modalData.v2, null, 4)} />
           </div>
         </div>
       )}

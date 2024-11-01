@@ -3,7 +3,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import { JsonView, defaultStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
-import ReactJsonViewCompare from 'react-json-view-compare';
+import ReactDiffViewer from 'react-diff-viewer-continued';
 
 interface BaseInfo {
   LogID?: string;
@@ -74,6 +74,8 @@ interface TableRow {
   serialNumber: number;
   capabilityKey: string;
   pmid: string;
+  reqV1: any;
+  reqV2: any;
   v1: any;
   v2: any;
 }
@@ -109,11 +111,25 @@ const Capability: React.FC = () => {
 
   // Function to process JSON data and populate tableData
   const processData = (data: Item[]) => {
-    const rows: TableRow[] = [];
-    let serialNumber = 1;
+    const capabilityMap: {
+      [capabilityKey: string]: {
+        [pmid: string]: TableRow[];
+      };
+    } = {};
+
+    let firstReqV1: any = null;
+    let firstReqV2: any = null;
 
     data.forEach(item => {
       if (item._source.is_diff_found && item._source.issues) {
+        // Only set firstReqV1 and firstReqV2 if they haven't been set yet
+        if (!firstReqV1 && item._source.query_capability_req_v1) {
+          firstReqV1 = item._source.query_capability_req_v1;
+        }
+        if (!firstReqV2 && item._source.query_capability_req_v2) {
+          firstReqV2 = item._source.query_capability_req_v2;
+        }
+
         item._source.issues.forEach(issue => {
           const fields = issue.v2v3_field.split(',');
           if (fields.length >= 4 && fields[0] === 'CapabilityRespMap') {
@@ -124,21 +140,29 @@ const Capability: React.FC = () => {
             const v1Value = tryParseJSON(issue.v2_value);
             const v2Value = tryParseJSON(issue.v3_value);
 
-            // Check if there's an existing row with the same capabilityKey, pmid, and values
-            const existingRow = rows.find(
-              row =>
-                row.capabilityKey === capabilityKey &&
-                row.pmid === pmid &&
-                JSON.stringify(row.v1) === JSON.stringify(v1Value) &&
-                JSON.stringify(row.v2) === JSON.stringify(v2Value),
+            // Initialize capabilityKey in capabilityMap if not present
+            if (!capabilityMap[capabilityKey]) {
+              capabilityMap[capabilityKey] = {};
+            }
+
+            // Initialize pmid array in capabilityMap if not present
+            if (!capabilityMap[capabilityKey][pmid]) {
+              capabilityMap[capabilityKey][pmid] = [];
+            }
+
+            // Check if there's an existing row with the same values (exclude reqV1 and reqV2)
+            const existingRow = capabilityMap[capabilityKey][pmid].find(
+              row => JSON.stringify(row.v1) === JSON.stringify(v1Value) && JSON.stringify(row.v2) === JSON.stringify(v2Value),
             );
 
             if (!existingRow) {
-              // If not, add a new row
-              rows.push({
-                serialNumber: serialNumber++,
+              // Add new row
+              capabilityMap[capabilityKey][pmid].push({
+                serialNumber: 0, // Will set later
                 capabilityKey,
                 pmid,
+                reqV1: null, // We'll set reqV1 and reqV2 later
+                reqV2: null,
                 v1: v1Value,
                 v2: v2Value,
               });
@@ -148,7 +172,32 @@ const Capability: React.FC = () => {
       }
     });
 
-    setTableData(rows);
+    // Now set reqV1 and reqV2 for all rows to the first ones found
+    const rows: TableRow[] = [];
+    Object.keys(capabilityMap).forEach(capabilityKey => {
+      const pmidMap = capabilityMap[capabilityKey];
+      Object.keys(pmidMap).forEach(pmid => {
+        pmidMap[pmid].forEach(row => {
+          row.reqV1 = firstReqV1;
+          row.reqV2 = firstReqV2;
+          rows.push(row);
+        });
+      });
+    });
+
+    // Sort the rows if needed
+    rows.sort((a, b) => {
+      if (a.capabilityKey !== b.capabilityKey) {
+        return a.capabilityKey.localeCompare(b.capabilityKey);
+      }
+      if (a.pmid !== b.pmid) {
+        return a.pmid.localeCompare(b.pmid);
+      }
+      return a.serialNumber - b.serialNumber;
+    });
+
+    const newRows = rows.map((item, i) => ({ ...item, serialNumber: i + 1 }));
+    setTableData(newRows);
   };
 
   const tryParseJSON = (str: string | null): any | string | null => {
@@ -167,9 +216,17 @@ const Capability: React.FC = () => {
       return;
     }
 
-    const headers = ['S/N', 'CapabilityKey', 'PMID', 'V1', 'V2'];
+    const headers = ['S/N', 'CapabilityKey', 'PMID', 'Req V1', 'Req V2', 'V1', 'V2'];
 
-    const rows = tableData.map(row => [row.serialNumber, row.capabilityKey, row.pmid, JSON.stringify(row.v1), JSON.stringify(row.v2)]);
+    const rows = tableData.map(row => [
+      row.serialNumber,
+      row.capabilityKey,
+      row.pmid,
+      JSON.stringify(row.reqV1),
+      JSON.stringify(row.reqV2),
+      JSON.stringify(row.v1),
+      JSON.stringify(row.v2),
+    ]);
 
     // Construct CSV content
     let csvContent = '';
@@ -220,6 +277,8 @@ const Capability: React.FC = () => {
             <th className='px-4 py-2 border bg-gray-200'>S/N</th>
             <th className='px-4 py-2 border bg-gray-200'>CapabilityKey</th>
             <th className='px-4 py-2 border bg-gray-200'>PMID</th>
+            <th className='px-4 py-2 border bg-gray-200'>Req V1</th>
+            <th className='px-4 py-2 border bg-gray-200'>Req V2</th>
             <th className='px-4 py-2 border bg-gray-200'>V1</th>
             <th className='px-4 py-2 border bg-gray-200'>V2</th>
             <th className='px-4 py-2 border bg-gray-200'>Diff</th>
@@ -231,16 +290,31 @@ const Capability: React.FC = () => {
               <td className='px-4 py-2 border text-center'>{row.serialNumber}</td>
               <td className='px-4 py-2 border'>{row.capabilityKey}</td>
               <td className='px-4 py-2 border'>{row.pmid}</td>
+              {/* Req V1 */}
+              <td className='px-4 py-2 border'>
+                <div className='max-h-64 overflow-y-auto'>
+                  <JsonView data={row.reqV1} style={defaultStyles} shouldExpandNode={() => false} />
+                </div>
+              </td>
+              {/* Req V2 */}
+              <td className='px-4 py-2 border'>
+                <div className='max-h-64 overflow-y-auto'>
+                  <JsonView data={row.reqV2} style={defaultStyles} shouldExpandNode={() => false} />
+                </div>
+              </td>
+              {/* V1 */}
               <td className='px-4 py-2 border'>
                 <div className='max-h-64 overflow-y-auto'>
                   <JsonView data={row.v1} style={defaultStyles} />
                 </div>
               </td>
+              {/* V2 */}
               <td className='px-4 py-2 border'>
                 <div className='max-h-64 overflow-y-auto'>
                   <JsonView data={row.v2} style={defaultStyles} />
                 </div>
               </td>
+              {/* Diff */}
               <td className='px-4 py-2 border text-center'>
                 <button onClick={() => openModal(row.v1, row.v2)} className='px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600'>
                   Expand Diff
@@ -261,7 +335,7 @@ const Capability: React.FC = () => {
                 Close
               </button>
             </div>
-            <ReactJsonViewCompare oldData={modalData.v1} newData={modalData.v2} />
+            <ReactDiffViewer oldValue={JSON.stringify(modalData.v1, null, 4)} newValue={JSON.stringify(modalData.v2, null, 4)} />
           </div>
         </div>
       )}
