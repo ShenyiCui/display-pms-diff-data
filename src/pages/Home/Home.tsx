@@ -129,9 +129,9 @@ const Home: React.FC = () => {
       return;
     }
 
-    const headers = ['PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
+    const headers = ['S/N', 'PMID', 'PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
 
-    const rows = uniqueItems.map(item => {
+    const rows = uniqueItems.map((item, i) => {
       // Exclude 'Base' from PMS V1 and V2 Requests
       const { Base: baseV1, ...reqV1WithoutBase } = item._source.query_element_key_info_req_v1 || {};
       const { Base: baseV2, ...reqV2WithoutBase } = item._source.query_element_key_info_req_v2 || {};
@@ -172,13 +172,13 @@ const Home: React.FC = () => {
       const reqV1 = JSON.stringify(reqV1WithoutBase);
       const reqV2 = JSON.stringify(reqV2WithoutBase);
 
-      return [reqV1, reqV2, v1Res, v2Res];
+      return [(i + 1).toString(), reqV1WithoutBase.payment_method_id || '', reqV2, v1Res, v2Res];
     });
 
     // Construct CSV content
     let csvContent = '';
     csvContent += headers.join(',') + '\r\n';
-    rows.forEach(row => {
+    rows.forEach((row, i) => {
       const escapedRow = row.map(field => `"${field.replace(/"/g, '""')}"`).join(',');
       csvContent += escapedRow + '\r\n';
     });
@@ -199,7 +199,7 @@ const Home: React.FC = () => {
 
   return (
     <div className='container p-4'>
-      <h1 className='text-2xl font-bold mb-4'>JSON Data Viewer</h1>
+      <h1 className='text-2xl font-bold mb-4'>QueryElement/KeyInfo Diff Visualiser</h1>
       <div className='flex items-center mb-4'>
         <input type='file' accept='.json' onChange={handleFileUpload} className='mr-4' />
         <button onClick={exportToCSV} className='px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600'>
@@ -209,6 +209,8 @@ const Home: React.FC = () => {
       <table className='table-auto w-full border-collapse'>
         <thead>
           <tr>
+            <th className='px-4 py-2 border bg-gray-200'>S/N</th>
+            <th className='px-4 py-2 border bg-gray-200'>PMID</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V1 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V2 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>V1 Res</th>
@@ -255,6 +257,8 @@ const Home: React.FC = () => {
 
             return (
               <tr key={index} className='odd:bg-white even:bg-gray-50'>
+                <td className='px-4 py-2 border'>{(index + 1).toString()}</td>
+                <td className='px-4 py-2 border'>{item._source.query_element_key_info_req_v1?.payment_method_id}</td>
                 <td className='px-4 py-2 border'>
                   <div className='max-h-64 overflow-y-auto'>
                     {item._source.query_element_key_info_req_v1 && <JsonView data={reqV1WithoutBase} style={defaultStyles} />}
