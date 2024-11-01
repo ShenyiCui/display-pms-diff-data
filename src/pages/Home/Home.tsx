@@ -3,6 +3,7 @@
 import React, { useState, ChangeEvent } from 'react';
 import { JsonView, defaultStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
+import ReactJsonViewCompare from 'react-json-view-compare';
 
 interface BaseInfo {
   LogID?: string;
@@ -215,6 +216,7 @@ const Home: React.FC = () => {
             <th className='px-4 py-2 border bg-gray-200'>PMS V2 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>V1 Res</th>
             <th className='px-4 py-2 border bg-gray-200'>V2 Res</th>
+            <th className='px-4 py-2 border bg-gray-200'>Diff</th>
           </tr>
         </thead>
         <tbody>
@@ -274,6 +276,9 @@ const Home: React.FC = () => {
                 </td>
                 <td className='px-4 py-2 border'>
                   {Object.keys(v2ResData).length > 0 && <JsonView data={v2ResData} style={defaultStyles} />}
+                </td>
+                <td className='px-4 py-2 border'>
+                  <ReactJsonViewCompare oldData={v1ResData} newData={v2ResData} />;
                 </td>
               </tr>
             );
