@@ -87,6 +87,20 @@ function generateUniqueKey(item: Item): string {
 
 const Home: React.FC = () => {
   const [jsonData, setJsonData] = useState<Item[]>([]);
+  const [showModal, setShowModal] = useState<boolean>(false);
+  const [modalData, setModalData] = useState<{ v1: any; v2: any }>({ v1: null, v2: null });
+
+  // Function to handle opening the modal with diff data
+  const openModal = (v1: any, v2: any) => {
+    setModalData({ v1, v2 });
+    setShowModal(true);
+  };
+
+  // Function to handle closing the modal
+  const closeModal = () => {
+    setShowModal(false);
+    setModalData({ v1: null, v2: null });
+  };
 
   const handleFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0];
@@ -277,14 +291,34 @@ const Home: React.FC = () => {
                 <td className='px-4 py-2 border'>
                   {Object.keys(v2ResData).length > 0 && <JsonView data={v2ResData} style={defaultStyles} />}
                 </td>
-                <td className='px-4 py-2 border'>
-                  <ReactJsonViewCompare oldData={v1ResData} newData={v2ResData} />;
+                <td className='px-4 py-2 border text-center'>
+                  <button
+                    onClick={() => openModal(v1ResData, v2ResData)}
+                    className='px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600'
+                  >
+                    Expand Diff
+                  </button>
                 </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* Modal for showing expanded diff */}
+      {showModal && (
+        <div className='fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50'>
+          <div className='bg-white rounded-lg p-4 w-11/12 h-5/6 overflow-auto'>
+            <div className='flex justify-between items-center mb-4'>
+              <h2 className='text-xl font-bold'>Diff Viewer</h2>
+              <button onClick={closeModal} className='text-gray-500 hover:text-gray-700'>
+                Close
+              </button>
+            </div>
+            <ReactJsonViewCompare oldData={modalData.v1} newData={modalData.v2} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
