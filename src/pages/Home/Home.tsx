@@ -187,7 +187,7 @@ const Home: React.FC = () => {
       const reqV1 = JSON.stringify(reqV1WithoutBase);
       const reqV2 = JSON.stringify(reqV2WithoutBase);
 
-      return [(i + 1).toString(), reqV1WithoutBase.payment_method_id || '', reqV2, v1Res, v2Res];
+      return [(i + 1).toString(), reqV1WithoutBase.payment_method_id || '', reqV1, reqV2, v1Res, v2Res];
     });
 
     // Construct CSV content
