@@ -150,13 +150,14 @@ const Home: React.FC = () => {
       // Exclude 'Base' from PMS V1 and V2 Requests
       const { Base: baseV1, ...reqV1WithoutBase } = item._source.query_element_key_info_req_v1 || {};
       const { Base: baseV2, ...reqV2WithoutBase } = item._source.query_element_key_info_req_v2 || {};
+      const pmid = item._source.res_pmid || '';
 
       // Prepare V1 Res and V2 Res data
       const issues = item._source.issues || [];
 
       const relevantIssues = issues
         .sort((a, b) => a.v2v3_field.localeCompare(b.v2v3_field))
-        .filter(issue => issue.v2v3_field.startsWith('EleKeyInfoMap'))
+        .filter(issue => issue.v2v3_field.startsWith('EleKeyInfoMap') || issue.v2v3_field.startsWith('EleMap'))
         .filter(issue => issue.v2v3_field.includes('DisplayTag') || issue.v2v3_field.includes('PIAvailabilityCheckTag'));
 
       const v1ResData: { [key: string]: any } = {};
@@ -164,7 +165,7 @@ const Home: React.FC = () => {
 
       relevantIssues.forEach(issue => {
         const fields = issue.v2v3_field.split(',');
-        if (fields.length >= 3 && fields[0] === 'EleKeyInfoMap') {
+        if (fields.length >= 3 && (fields[0] === 'EleKeyInfoMap' || fields[0] === 'EleMap')) {
           const key = fields[1];
           const subKey = fields[2];
 
@@ -186,8 +187,7 @@ const Home: React.FC = () => {
       // Stringify PMS V1 and V2 Requests
       const reqV1 = JSON.stringify(reqV1WithoutBase);
       const reqV2 = JSON.stringify(reqV2WithoutBase);
-
-      return [(i + 1).toString(), reqV1WithoutBase.payment_method_id || '', reqV1, reqV2, v1Res, v2Res];
+      return [(i + 1).toString(), pmid, reqV1, reqV2, v1Res, v2Res];
     });
 
     // Construct CSV content
@@ -241,7 +241,7 @@ const Home: React.FC = () => {
             issues = issues.sort((a, b) => a.v2v3_field.localeCompare(b.v2v3_field));
 
             const relevantIssues = issues
-              .filter(issue => issue.v2v3_field.startsWith('EleKeyInfoMap'))
+              .filter(issue => issue.v2v3_field.startsWith('EleKeyInfoMap') || issue.v2v3_field.startsWith('EleMap'))
               .filter(issue => issue.v2v3_field.includes('DisplayTag') || issue.v2v3_field.includes('PIAvailabilityCheckTag'));
 
             const v1ResData: { [key: string]: any } = {};
@@ -249,7 +249,7 @@ const Home: React.FC = () => {
 
             relevantIssues.forEach(issue => {
               const fields = issue.v2v3_field.split(',');
-              if (fields.length >= 3 && fields[0] === 'EleKeyInfoMap') {
+              if (fields.length >= 3 && (fields[0] === 'EleKeyInfoMap' || fields[0] === 'EleMap')) {
                 const key = fields[1];
                 const subKey = fields[2];
 
@@ -274,7 +274,7 @@ const Home: React.FC = () => {
             return (
               <tr key={index} className='odd:bg-white even:bg-gray-50'>
                 <td className='px-4 py-2 border'>{(index + 1).toString()}</td>
-                <td className='px-4 py-2 border'>{item._source.query_element_key_info_req_v1?.payment_method_id}</td>
+                <td className='px-4 py-2 border'>{item._source.res_pmid}</td>
                 <td className='px-4 py-2 border'>
                   <div className='max-h-64 overflow-y-auto'>
                     {item._source.query_element_key_info_req_v1 && <JsonView data={reqV1WithoutBase} style={defaultStyles} />}
