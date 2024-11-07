@@ -3,6 +3,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import ReactDiffViewer from 'react-diff-viewer-continued';
+import pako from 'pako';
 
 const DiffView: React.FC = () => {
   const location = useLocation();
@@ -12,24 +13,43 @@ const DiffView: React.FC = () => {
   const v1Param: string | null = queryParams.get('v1');
   const v2Param: string | null = queryParams.get('v2');
 
-  // Function to decode Base64 and parse JSON
-  const decodeBase64AndParse = (param: string | null, paramName: string): string => {
+  // Function to decode, decompress, and parse JSON
+  const decodeAndDecompress = (param: string | null, paramName: string): string => {
     if (!param) {
       return `No ${paramName} parameter provided`;
     }
     try {
-      // Decode Base64 string
-      const decodedString: string = atob(param);
+      // Adjust Base64 URL-safe encoding
+      let base64 = param.replace(/-/g, '+').replace(/_/g, '/');
+      // Pad with '=' to make length a multiple of 4
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+
+      // Base64 decode
+      const binaryString = atob(base64);
+
+      // Convert binary string to Uint8Array
+      const binaryLen = binaryString.length;
+      const bytes = new Uint8Array(binaryLen);
+      for (let i = 0; i < binaryLen; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // Decompress using pako
+      const decompressed = pako.inflate(bytes, { to: 'string' });
+
       // Parse JSON
-      const parsed = JSON.parse(decodedString);
+      const parsed = JSON.parse(decompressed);
       return JSON.stringify(parsed, null, 4);
     } catch (e: unknown) {
-      return `Invalid Base64 or JSON in ${paramName} parameter`;
+      console.error(`Error decoding ${paramName}:`, e);
+      return `Invalid compressed data or JSON in ${paramName} parameter`;
     }
   };
 
-  const jsonV1: string = decodeBase64AndParse(v1Param, 'v1');
-  const jsonV2: string = decodeBase64AndParse(v2Param, 'v2');
+  const jsonV1: string = decodeAndDecompress(v1Param, 'v1');
+  const jsonV2: string = decodeAndDecompress(v2Param, 'v2');
 
   return (
     <div className='fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50'>
