@@ -53,6 +53,7 @@ interface Source {
   query_element_key_info_req_v1?: QueryElementKeyInfoReqV1;
   query_element_key_info_req_v2?: QueryElementKeyInfoReqV2;
   issues?: Issue[];
+  diff_issues?: string; // Added diff_issues field
   // Other fields can be added here if needed
 }
 
@@ -64,10 +65,24 @@ interface Item {
   _source: Source;
 }
 
-// Function to generate a unique key based on res_pmid and sorted issues
+// Function to extract EKG_V1 and EKG_V2 from diff_issues
+function extractEKGV1V2(diffIssues: string): { ekgV1: string; ekgV2: string } {
+  if (!diffIssues) {
+    return { ekgV1: '', ekgV2: '' };
+  }
+  const [ekgV1, ekgV2] = diffIssues.split('/');
+  return {
+    ekgV1: ekgV1 || '',
+    ekgV2: ekgV2 || '',
+  };
+}
+
+// Function to generate a unique key based on res_pmid, EKG_V1, EKG_V2, and sorted issues
 function generateUniqueKey(item: Item): string {
   const resPmid = item._source.res_pmid || '';
   const issues = item._source.issues || [];
+  const diffIssues = item._source.diff_issues || '';
+  const { ekgV1, ekgV2 } = extractEKGV1V2(diffIssues);
 
   // Deep copy and sort the issues array by v2v3_field
   const sortedIssues = issues
@@ -81,8 +96,8 @@ function generateUniqueKey(item: Item): string {
   // Stringify the sorted issues array
   const issuesString = JSON.stringify(sortedIssues);
 
-  // Generate a unique key combining resPmid and issuesString
-  return `${resPmid}_${issuesString}`;
+  // Generate a unique key combining resPmid, EKG_V1, EKG_V2, and issuesString
+  return `${resPmid}_${ekgV1}_${ekgV2}_${issuesString}`;
 }
 
 const Home: React.FC = () => {
@@ -144,9 +159,11 @@ const Home: React.FC = () => {
       return;
     }
 
-    const headers = ['S/N', 'PMID', 'PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
+    const headers = ['S/N', 'PMID', 'EKG V1', 'EKG V2', 'PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
 
     const rows = uniqueItems.map((item, i) => {
+      const { ekgV1, ekgV2 } = extractEKGV1V2(item._source.diff_issues || '');
+
       // Exclude 'Base' from PMS V1 and V2 Requests
       const { Base: baseV1, ...reqV1WithoutBase } = item._source.query_element_key_info_req_v1 || {};
       const { Base: baseV2, ...reqV2WithoutBase } = item._source.query_element_key_info_req_v2 || {};
@@ -187,7 +204,7 @@ const Home: React.FC = () => {
       // Stringify PMS V1 and V2 Requests
       const reqV1 = JSON.stringify(reqV1WithoutBase);
       const reqV2 = JSON.stringify(reqV2WithoutBase);
-      return [(i + 1).toString(), pmid, reqV1, reqV2, v1Res, v2Res];
+      return [(i + 1).toString(), pmid, ekgV1, ekgV2, reqV1, reqV2, v1Res, v2Res];
     });
 
     // Construct CSV content
@@ -226,6 +243,8 @@ const Home: React.FC = () => {
           <tr>
             <th className='px-4 py-2 border bg-gray-200'>S/N</th>
             <th className='px-4 py-2 border bg-gray-200'>PMID</th>
+            <th className='px-4 py-2 border bg-gray-200'>EKG V1</th>
+            <th className='px-4 py-2 border bg-gray-200'>EKG V2</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V1 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V2 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>V1 Res</th>
@@ -235,6 +254,8 @@ const Home: React.FC = () => {
         </thead>
         <tbody>
           {uniqueItems.map((item, index) => {
+            const { ekgV1, ekgV2 } = extractEKGV1V2(item._source.diff_issues || '');
+
             let issues = item._source.issues || [];
 
             // Sort issues by v2v3_field for consistent processing
@@ -275,6 +296,8 @@ const Home: React.FC = () => {
               <tr key={index} className='odd:bg-white even:bg-gray-50'>
                 <td className='px-4 py-2 border'>{(index + 1).toString()}</td>
                 <td className='px-4 py-2 border'>{item._source.res_pmid}</td>
+                <td className='px-4 py-2 border'>{ekgV1}</td>
+                <td className='px-4 py-2 border'>{ekgV2}</td>
                 <td className='px-4 py-2 border'>
                   <div className='max-h-64 overflow-y-auto'>
                     {item._source.query_element_key_info_req_v1 && <JsonView data={reqV1WithoutBase} style={defaultStyles} />}
