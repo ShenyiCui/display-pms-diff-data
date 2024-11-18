@@ -216,7 +216,7 @@ const Capability: React.FC = () => {
       return;
     }
 
-    const headers = ['S/N', 'CapabilityKey', 'PMID', 'Req V1', 'Req V2', 'V1', 'V2'];
+    const headers = ['S/N', 'CapabilityKey', 'PMID', 'PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
 
     const rows = tableData.map(row => [
       row.serialNumber,
@@ -277,10 +277,10 @@ const Capability: React.FC = () => {
             <th className='px-4 py-2 border bg-gray-200'>S/N</th>
             <th className='px-4 py-2 border bg-gray-200'>CapabilityKey</th>
             <th className='px-4 py-2 border bg-gray-200'>PMID</th>
-            <th className='px-4 py-2 border bg-gray-200'>Req V1</th>
-            <th className='px-4 py-2 border bg-gray-200'>Req V2</th>
-            <th className='px-4 py-2 border bg-gray-200'>V1</th>
-            <th className='px-4 py-2 border bg-gray-200'>V2</th>
+            <th className='px-4 py-2 border bg-gray-200'>PMS V1 Request</th>
+            <th className='px-4 py-2 border bg-gray-200'>PMS V2 Request</th>
+            <th className='px-4 py-2 border bg-gray-200'>V1 Res</th>
+            <th className='px-4 py-2 border bg-gray-200'>V2 Res</th>
             <th className='px-4 py-2 border bg-gray-200'>Diff</th>
           </tr>
         </thead>
