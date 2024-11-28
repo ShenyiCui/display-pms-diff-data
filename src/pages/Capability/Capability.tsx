@@ -4,6 +4,7 @@ import React, { useState, ChangeEvent } from 'react';
 import { JsonView, defaultStyles } from 'react-json-view-lite';
 import 'react-json-view-lite/dist/index.css';
 import ReactDiffViewer from 'react-diff-viewer-continued';
+import pako from 'pako';
 
 interface BaseInfo {
   LogID?: string;
@@ -52,11 +53,14 @@ interface Issue {
 
 interface Source {
   log_id?: string;
+  created_at?: string;
   req_function_name?: string;
   is_diff_found?: boolean;
   res_pmid?: string;
   query_capability_req_v1?: QueryCapabilityReqV1;
   query_capability_req_v2?: QueryCapabilityReqV2;
+  request_old?: any;
+  request_new?: any;
   issues?: Issue[];
   // Other fields can be added here if needed
 }
@@ -78,6 +82,24 @@ interface TableRow {
   reqV2: any;
   v1: any;
   v2: any;
+  logId: string;
+  createdAt: string;
+}
+
+function base64EncodeUint8Array(uint8Array: Uint8Array): string {
+  let binary = '';
+  const len = uint8Array.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(uint8Array[i]);
+  }
+  return btoa(binary);
+}
+
+function compressAndEncode(data: string): string {
+  const compressedData = pako.deflate(data);
+  const base64Encoded = base64EncodeUint8Array(compressedData);
+  // URL safe base64 encoding
+  return base64Encoded.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 const Capability: React.FC = () => {
@@ -130,9 +152,20 @@ const Capability: React.FC = () => {
           firstReqV2 = item._source.query_capability_req_v2;
         }
 
+        if (!firstReqV1 && item._source.request_old) {
+          firstReqV1 = item._source.request_old;
+        }
+        if (!firstReqV2 && item._source.request_new) {
+          firstReqV2 = item._source.request_new;
+        }
+
+        // Extract logId and createdAt
+        const logId = item._source.log_id || '';
+        const createdAt = item._source.created_at ? new Date(Number(item._source.created_at)).toISOString() : '';
+
         item._source.issues.forEach(issue => {
           const fields = issue.v2v3_field.split(',');
-          if (fields.length >= 4 && fields[0] === 'CapabilityRespMap') {
+          if (fields.length >= 4 && (fields[0] === 'CapabilityRespMap' || fields[0] === 'CapabilityResponseMap')) {
             const capabilityKey = fields[3];
             const pmid = fields[1];
 
@@ -150,7 +183,7 @@ const Capability: React.FC = () => {
               capabilityMap[capabilityKey][pmid] = [];
             }
 
-            // Check if there's an existing row with the same values (exclude reqV1 and reqV2)
+            // Check if there's an existing row with the same values
             const existingRow = capabilityMap[capabilityKey][pmid].find(
               row => JSON.stringify(row.v1) === JSON.stringify(v1Value) && JSON.stringify(row.v2) === JSON.stringify(v2Value),
             );
@@ -165,6 +198,8 @@ const Capability: React.FC = () => {
                 reqV2: null,
                 v1: v1Value,
                 v2: v2Value,
+                logId,
+                createdAt,
               });
             }
           }
@@ -216,17 +251,32 @@ const Capability: React.FC = () => {
       return;
     }
 
-    const headers = ['S/N', 'CapabilityKey', 'PMID', 'PMS V1 Request', 'PMS V2 Request', 'V1 Res', 'V2 Res'];
+    const headers = [
+      'S/N',
+      'CapabilityKey',
+      'PMID',
+      'Log ID',
+      'Created At',
+      'PMS V1 Request',
+      'PMS V2 Request',
+      'V1 Res',
+      'V2 Res',
+      'Difference Visualiser',
+    ];
 
-    const rows = tableData.map(row => [
-      row.serialNumber,
-      row.capabilityKey,
-      row.pmid,
-      JSON.stringify(row.reqV1),
-      JSON.stringify(row.reqV2),
-      JSON.stringify(row.v1),
-      JSON.stringify(row.v2),
-    ]);
+    const rows = tableData.map(row => {
+      const reqV1Str = JSON.stringify(row.reqV1);
+      const reqV2Str = JSON.stringify(row.reqV2);
+      const v1ResStr = JSON.stringify(row.v1);
+      const v2ResStr = JSON.stringify(row.v2);
+
+      // Generate the difference visualizer link
+      const encodedV1Res = compressAndEncode(v1ResStr);
+      const encodedV2Res = compressAndEncode(v2ResStr);
+      const link = `https://pms-diff-display.netlify.app/diffview?v1=${encodedV1Res}&v2=${encodedV2Res}`;
+
+      return [row.serialNumber, row.capabilityKey, row.pmid, row.logId, row.createdAt, reqV1Str, reqV2Str, v1ResStr, v2ResStr, link];
+    });
 
     // Construct CSV content
     let csvContent = '';
@@ -277,10 +327,13 @@ const Capability: React.FC = () => {
             <th className='px-4 py-2 border bg-gray-200'>S/N</th>
             <th className='px-4 py-2 border bg-gray-200'>CapabilityKey</th>
             <th className='px-4 py-2 border bg-gray-200'>PMID</th>
+            <th className='px-4 py-2 border bg-gray-200'>Log ID</th>
+            <th className='px-4 py-2 border bg-gray-200'>Created At</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V1 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>PMS V2 Request</th>
             <th className='px-4 py-2 border bg-gray-200'>V1 Res</th>
             <th className='px-4 py-2 border bg-gray-200'>V2 Res</th>
+            <th className='px-4 py-2 border bg-gray-200'>Difference Visualiser</th>
             <th className='px-4 py-2 border bg-gray-200'>Diff</th>
           </tr>
         </thead>
@@ -290,6 +343,8 @@ const Capability: React.FC = () => {
               <td className='px-4 py-2 border text-center'>{row.serialNumber}</td>
               <td className='px-4 py-2 border'>{row.capabilityKey}</td>
               <td className='px-4 py-2 border'>{row.pmid}</td>
+              <td className='px-4 py-2 border'>{row.logId}</td>
+              <td className='px-4 py-2 border'>{row.createdAt}</td>
               {/* Req V1 */}
               <td className='px-4 py-2 border'>
                 <div className='max-h-64 overflow-y-auto'>
@@ -313,6 +368,19 @@ const Capability: React.FC = () => {
                 <div className='max-h-64 overflow-y-auto'>
                   <JsonView data={row.v2} style={defaultStyles} />
                 </div>
+              </td>
+              {/* Difference Visualiser */}
+              <td className='px-4 py-2 border'>
+                <a
+                  href={`https://pms-diff-display.netlify.app/diffview?v1=${compressAndEncode(
+                    JSON.stringify(row.v1),
+                  )}&v2=${compressAndEncode(JSON.stringify(row.v2))}`}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  className='text-blue-500 hover:underline'
+                >
+                  View Diff
+                </a>
               </td>
               {/* Diff */}
               <td className='px-4 py-2 border text-center'>
